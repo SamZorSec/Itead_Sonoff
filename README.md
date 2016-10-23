@@ -15,7 +15,7 @@ Sonoff is a small ESP8266 based module, that can toggle mains power and costs on
 - Choose your network (3) and enter your MQTT username, password, broker IP address and broker port (4)
 - Update your configuration in Home Assistant, with :
   - `state_topic: <WIFI_AP_NAME>/switch/state`
-  - `scommand_topic: <WIFI_AP_NAME>/switch/switch`
+  - `command_topic: <WIFI_AP_NAME>/switch/switch`
 
 ![Steps](Steps.png)
 
