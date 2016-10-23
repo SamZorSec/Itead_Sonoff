@@ -1,5 +1,5 @@
 /* 
-  Alternative firmware for Sonoff TH switches, based on the MQTT protocol
+  Alternative firmware for Sonoff switches, based on the MQTT protocol
   The very initial version of this firmware was a fork from the SonoffBoilerplate (tzapu)
 
   This firmware can be easily interfaced with Home Assistant, with the MQTT switch 
@@ -15,6 +15,12 @@
     - File > Examples > PubSubClient > mqtt_auth
     - https://github.com/tzapu/SonoffBoilerplate
 
+  Schematic:
+    - VCC (Sonoff) -> VCC (FTDI)
+    - RX  (Sonoff) -> TX  (FTDI)
+    - TX  (Sonoff) -> RX  (FTDI)
+    - GND (Sonoff) -> GND (FTDI)
+
   Steps:
     - Upload the firmware
     - Connect to the new Wi-Fi AP and memorize its name 
@@ -23,6 +29,14 @@
     - Update your configuration in Home Assistant, with :
         state_topic: <Wi-Fi AP name>/switch/state
         command_topic: <Wi-Fi AP name>/switch/switch
+
+  Configuration (Home Assistant) : 
+    switch:
+      platform: mqtt
+      name: 'Switch'
+      state_topic: 'CBF777/switch/state'
+      command_topic: 'CBF777/switch/switch'
+      optimistic: false
 
   Samuel M. - v1.0 - 10.2016
   If you like this example, please add a star! Thank you!
