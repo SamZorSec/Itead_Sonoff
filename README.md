@@ -6,10 +6,14 @@ Sonoff is a small ESP8266 based module, that can toggle mains power and costs on
 - Wi-Fi credentials configuration using WiFiManager
 - Web configuration portal to setup MQTT username, password, broker IP address and port
 - OTA firmware update
-- Turn on/off the relay from the onboard button
+- Onboard button:
+  - Toggle the state of the relay
+  - Restart the relay (hold pressed 3 seconds)
+  - Reset the relay (hold pressed 5 seconds)
 
 ## Steps
-- Connect the Sonoff to a FTDI and upload the firmware
+- Connect the Sonoff to a FTDI adapter and hold down the button, while powering it (programing mode)
+- Upload the firmware with the Arduino IDE
 - Connect to the new Wi-Fi AP and memorize its name (1)
 - Select `Configure WiFi`(2)
 - Choose your network (3) and enter your MQTT username, password, broker IP address and broker port (4)
