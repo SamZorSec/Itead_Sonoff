@@ -1,6 +1,6 @@
 # Sonoff
 Alternative firmware for Sonoff switches, based on the MQTT protocol.
-Sonoff is a small ESP8266 based module, that can toggle mains power and costs only $4.85; see more [here](https://www.itead.cc/sonoff-wifi-wireless-switch.html).
+Sonoff is a small ESP8266 based module, that can toggle mains power and costs only $4.85. More information can be found [here](https://www.itead.cc/sonoff-wifi-wireless-switch.html).
 
 ## Features
 - Wi-Fi credentials configuration using WiFiManager
@@ -9,7 +9,7 @@ Sonoff is a small ESP8266 based module, that can toggle mains power and costs on
 - Turn on/off the relay from the onboard button
 
 ## Steps
-- Connect the Sonoff to a FTDI and Upload the firmware
+- Connect the Sonoff to a FTDI and upload the firmware
 - Connect to the new Wi-Fi AP and memorize its name (1)
 - Select `Configure WiFi`(2)
 - Choose your network (3) and enter your MQTT username, password, broker IP address and broker port (4)
