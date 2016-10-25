@@ -13,7 +13,7 @@ Sonoff is a small ESP8266 based module, that can toggle mains power and costs on
 
 ## Steps
 - Connect the Sonoff to a FTDI adapter and hold down the button, while powering it (programing mode)
-- Upload the firmware with the Arduino IDE
+- Upload the firmware with the Arduino IDE (use the settings below)
 - Connect to the new Wi-Fi AP and memorize its name (1)
 - Select `Configure WiFi`(2)
 - Choose your network (3) and enter your MQTT username, password, broker IP address and broker port (4)
@@ -21,6 +21,22 @@ Sonoff is a small ESP8266 based module, that can toggle mains power and costs on
   - `state_topic: <WIFI_AP_NAME>/switch/state`
   - `command_topic: <WIFI_AP_NAME>/switch/switch`
 
+### Settings for the Arduino IDE
+
+| Parameter       | Value                    | 
+| ----------------|--------------------------|
+| Board           | Generic ESP8266 Module   | 
+| Flash Mode      | DIO                      |  
+| Flash Frequency | 40 MHz                   |  
+| Upload Using    | Serial                   |  
+| CPU Frequency   | 80 MHz                   |  
+| Flash Size      | 512K (64K SPIFFS)        |  
+| Reset Method    | ck                       |  
+| Upload Speed    | 115200                   |  
+| Port            | COMX, /dev/ttyUSB0, etc. |
+
+
+### Wi-Fi and MQTT Configuration
 ![Steps](Steps.png)
 
 ## Schematic
