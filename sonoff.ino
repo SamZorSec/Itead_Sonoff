@@ -39,7 +39,7 @@
 
   Versions:
     - 1.0: Initial version
-    - 1.1: Add TLS support for CloudMQTT (or any other MQTT brokers)
+    - 1.1: Add TLS support
 
   Samuel M. - v1.1 - 11.2016
   If you like this example, please add a star! Thank you!

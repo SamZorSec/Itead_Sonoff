@@ -6,7 +6,7 @@ Sonoff is a small ESP8266 based module, that can toggle mains power and costs on
 - Wi-Fi credentials configuration using WiFiManager
 - Web configuration portal to setup MQTT username, password, broker IP address and port
 - OTA firmware update
-- TLS support for CloudMQTT. For any other MQTT brokers, you need to change the `broker`address and the `fingerprint`of its certificate.
+- TLS support for CloudMQTT. For any other MQTT brokers, you need to change the `broker`address and the `fingerprint`of its certificate
 - Onboard button:
   - Toggle the state of the relay
   - Restart the relay (hold pressed 3 seconds)
@@ -59,5 +59,5 @@ switch:
 ```
 
 ## Versions
-- 1.0: Initial Version
-- 1.1: Add TLS support for CloudMQTT (or any other MQTT brokers)
+- 1.0: Initial version
+- 1.1: Add TLS support
