@@ -14,6 +14,7 @@
     - File > Examples > ES8266WiFi > WiFiClient
     - File > Examples > PubSubClient > mqtt_auth
     - https://github.com/tzapu/SonoffBoilerplate
+    - https://io.adafruit.com/blog/security/2016/07/05/adafruit-io-security-esp8266/
 
   Schematic:
     - VCC (Sonoff) -> VCC (FTDI)
@@ -26,9 +27,7 @@
     - Connect to the new Wi-Fi AP and memorize its name 
     - Choose your network and enter your MQTT username, password, broker 
       IP address and broker port
-    - Update your configuration in Home Assistant, with :
-        state_topic: <Wi-Fi AP name>/switch/state
-        command_topic: <Wi-Fi AP name>/switch/switch
+    - Update your configuration in Home Assistant
 
   Configuration (Home Assistant) : 
     switch:
@@ -38,7 +37,11 @@
       command_topic: 'CBF777/switch/switch'
       optimistic: false
 
-  Samuel M. - v1.0 - 10.2016
+  Versions:
+    - 1.0: Initial version
+    - 1.1: Add TLS support for CloudMQTT (or any other MQTT brokers)
+
+  Samuel M. - v1.1 - 11.2016
   If you like this example, please add a star! Thank you!
   https://github.com/mertenats/sonoff
 */
@@ -50,6 +53,9 @@
 #include <EEPROM.h>
 #include <ArduinoOTA.h>
 
+// TLS support, make sure to edit the fingerprint and the broker address if
+// your are not using CloudMQTT
+#define           TLS
 #define           DEBUG                       // enable debugging
 #define           STRUCT_CHAR_ARRAY_SIZE 24   // size of the arrays for MQTT username, password, etc.
 
@@ -76,10 +82,10 @@ const char*       MQTT_SWITCH_OFF_PAYLOAD                           = "OFF";
 
 // Settings for MQTT
 typedef struct {
-  char            mqttUser[STRUCT_CHAR_ARRAY_SIZE]                  = {0};
-  char            mqttPassword[STRUCT_CHAR_ARRAY_SIZE]              = {0};
-  char            mqttServer[STRUCT_CHAR_ARRAY_SIZE]                = {0};
-  char            mqttPort[5]                                       = {0};
+  char            mqttUser[STRUCT_CHAR_ARRAY_SIZE]                  = "";//{0};
+  char            mqttPassword[STRUCT_CHAR_ARRAY_SIZE]              = "";//{0};
+  char            mqttServer[STRUCT_CHAR_ARRAY_SIZE]                = "";//{0};
+  char            mqttPort[6]                                       = "";//{0};
 } Settings;
 
 const uint8_t     CMD_BUTTON_NOT_PRESSED                            = 0;
@@ -92,9 +98,40 @@ volatile long     startPress                                        = 0;
 
 Settings          settings;
 Ticker            ticker;
+#ifdef TLS
+WiFiClientSecure  wifiClient;
+const char*       broker      = "m21.cloudmqtt.com"; 
+// SHA1 fingerprint of the certificate
+const char*       fingerprint = "A5 02 FF 13 99 9F 8B 39 8E F1 83 4F 11 23 65 0B 32 36 FC 07";
+#else
 WiFiClient        wifiClient;
+#endif
 PubSubClient      mqttClient(wifiClient);
 
+///////////////////////////////////////////////////////////////////////////
+//   Adafruit IO with SSL/TLS
+///////////////////////////////////////////////////////////////////////////
+/*
+  Function called to verify the fingerprint of the MQTT server certificate
+ */
+#ifdef TLS
+void verifyFingerprint() {
+  DEBUG_PRINT(F("INFO: Connecting to "));
+  DEBUG_PRINTLN(settings.mqttServer);
+
+  if (!wifiClient.connect(settings.mqttServer, atoi(settings.mqttPort))) {
+    DEBUG_PRINTLN(F("ERROR: Connection failed. Halting execution"));
+    reset();
+  }
+
+  if (wifiClient.verify(fingerprint, settings.mqttServer)) {
+    DEBUG_PRINTLN(F("INFO: Connection secure"));
+  } else {
+    DEBUG_PRINTLN(F("ERROR: Connection insecure! Halting execution"));
+    reset();
+  }
+}
+#endif
 
 ///////////////////////////////////////////////////////////////////////////
 //   MQTT
@@ -276,8 +313,12 @@ void setup() {
   
   WiFiManagerParameter custom_mqtt_user("mqtt-user", "MQTT User", settings.mqttUser, STRUCT_CHAR_ARRAY_SIZE);
   WiFiManagerParameter custom_mqtt_password("mqtt-password", "MQTT Password", settings.mqttPassword, STRUCT_CHAR_ARRAY_SIZE, "type = \"password\"");
+#ifdef TLS
+  WiFiManagerParameter custom_mqtt_server("mqtt-server", "MQTT Broker IP", "m21.cloudmqtt.com", STRUCT_CHAR_ARRAY_SIZE, "disabled");
+#else
   WiFiManagerParameter custom_mqtt_server("mqtt-server", "MQTT Broker IP", settings.mqttServer, STRUCT_CHAR_ARRAY_SIZE);
-  WiFiManagerParameter custom_mqtt_port("mqtt-port", "MQTT Broker Port", settings.mqttPort, 5);
+#endif
+  WiFiManagerParameter custom_mqtt_port("mqtt-port", "MQTT Broker Port", settings.mqttPort, 6);
 
   WiFiManager wifiManager;
   
@@ -297,15 +338,24 @@ void setup() {
   }
 
   if (shouldSaveConfig) {
+#ifdef TLS
+    strcpy(settings.mqttServer,   broker);
+#else
     strcpy(settings.mqttServer,   custom_mqtt_server.getValue());
-    strcpy(settings.mqttPort,     custom_mqtt_port.getValue());
+#endif
     strcpy(settings.mqttUser,     custom_mqtt_user.getValue());
     strcpy(settings.mqttPassword, custom_mqtt_password.getValue());
+    strcpy(settings.mqttPort,     custom_mqtt_port.getValue());
 
     EEPROM.begin(512);
     EEPROM.put(0, settings);
     EEPROM.end();
   }
+
+#ifdef TLS
+  // check the fingerprint of io.adafruit.com's SSL cert
+  verifyFingerprint();
+#endif
 
   // configure MQTT
   mqttClient.setServer(settings.mqttServer, atoi(settings.mqttPort));
@@ -325,14 +375,6 @@ void setup() {
 
 void loop() {
   ArduinoOTA.handle();
-
-  yield();
-
-  // keep the MQTT client connected to the broker
-  if (!mqttClient.connected()) {
-    reconnect();
-  }
-  mqttClient.loop();
 
   yield();
 
@@ -361,4 +403,14 @@ void loop() {
       }
       break;
   }
+
+  yield();
+  
+  // keep the MQTT client connected to the broker
+  if (!mqttClient.connected()) {
+    reconnect();
+  }
+  mqttClient.loop();
+
+  yield();
 }

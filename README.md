@@ -6,6 +6,7 @@ Sonoff is a small ESP8266 based module, that can toggle mains power and costs on
 - Wi-Fi credentials configuration using WiFiManager
 - Web configuration portal to setup MQTT username, password, broker IP address and port
 - OTA firmware update
+- TLS support for CloudMQTT. For any other MQTT brokers, you need to change the `broker`address and the `fingerprint`of its certificate.
 - Onboard button:
   - Toggle the state of the relay
   - Restart the relay (hold pressed 3 seconds)
@@ -17,15 +18,13 @@ Sonoff is a small ESP8266 based module, that can toggle mains power and costs on
 - Connect to the new Wi-Fi AP and memorize its name (1)
 - Select `Configure WiFi`(2)
 - Choose your network (3) and enter your MQTT username, password, broker IP address and broker port (4)
-- Update your configuration in Home Assistant, with :
-  - `state_topic: <WIFI_AP_NAME>/switch/state`
-  - `command_topic: <WIFI_AP_NAME>/switch/switch`
+- Update your configuration in Home Assistant
 
 ### Settings for the Arduino IDE
 
-| Parameter       | Value                    | 
+| Parameter       | Value                    |
 | ----------------|--------------------------|
-| Board           | Generic ESP8266 Module   | 
+| Board           | Generic ESP8266 Module   |
 | Flash Mode      | DIO                      |  
 | Flash Frequency | 40 MHz                   |  
 | Upload Using    | Serial                   |  
@@ -58,3 +57,7 @@ switch:
   command_topic: 'CBF777/switch/switch'
   optimistic: false
 ```
+
+## Versions
+- 1.0: Initial Version
+- 1.1: Add TLS support for CloudMQTT (or any other MQTT brokers)
