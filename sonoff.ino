@@ -31,6 +31,10 @@
       IP address and broker port
     - Update your configuration in Home Assistant
 
+  MQTT topics and payload:
+    - State:    <Chip_ID>/switch/state      ON/OFF
+    - Command:  <Chip_ID>/switch/switch     ON/OFF
+
   Configuration (Home Assistant) : 
     switch:
       platform: mqtt
@@ -44,7 +48,7 @@
     - 1.1: Add TLS support
     - 1.2: Add PIR sensor support
 
-  Samuel M. - v1.1 - 11.2016
+  Samuel M. - v1.2 - 11.2016
   If you like this example, please add a star! Thank you!
   https://github.com/mertenats/sonoff
 */
@@ -424,20 +428,26 @@ void loop() {
     case CMD_NOT_DEFINED:
       // do nothing
       break;
+#ifdef PIR
     case CMD_PIR_STATE_CHANGED:
       currentPirState = digitalRead(PIR_SENSOR_PIN);
       if (pirState != currentPirState) {
         if (pirState == LOW && currentPirState == HIGH) {
-          relayState = HIGH; // closed
-          setRelayState();
+          if (relayState != HIGH) {
+            relayState = HIGH; // closed
+            setRelayState();
+          }
         } else if (pirState == HIGH && currentPirState == LOW) {
-          relayState = LOW; // opened
-          setRelayState();
+          if (relayState != LOW) {
+            relayState = LOW; // opened
+            setRelayState();
+          }
         }
         pirState = currentPirState;
       }
       cmd = CMD_NOT_DEFINED;
       break;
+#endif
     case CMD_BUTTON_STATE_CHANGED:
       currentButtonState = digitalRead(BUTTON_PIN);
       if (buttonState != currentButtonState) {
@@ -450,7 +460,6 @@ void loop() {
           } else if (buttonDurationPressed < 3000) {
             restart();
           } else {
-            DEBUG_PRINTLN(F("INFO: Reseting..."));
             reset();
           }
         } else if (buttonState == HIGH && currentButtonState == LOW) {
