@@ -1,9 +1,11 @@
 /* 
-  Alternative firmware for Sonoff switches, based on the MQTT protocol
+  Alternative firmware for Itead Sonoff switches, based on the MQTT protocol and a TLS connection
   The very initial version of this firmware was a fork from the SonoffBoilerplate (tzapu)
-
+  
   This firmware can be easily interfaced with Home Assistant, with the MQTT switch 
   component: https://home-assistant.io/components/switch.mqtt/
+
+  CloudMQTT (free until 10 connections): https://www.cloudmqtt.com
   
   Libraries :
     - ESP8266 core for Arduino :  https://github.com/esp8266/Arduino
@@ -40,6 +42,7 @@
   Versions:
     - 1.0: Initial version
     - 1.1: Add TLS support
+    - 1.2: Add PIR sensor support
 
   Samuel M. - v1.1 - 11.2016
   If you like this example, please add a star! Thank you!
@@ -51,11 +54,25 @@
 #include <PubSubClient.h>   // https://github.com/knolleary/pubsubclient/releases/tag/v2.6
 #include <Ticker.h>
 #include <EEPROM.h>
-#include <ArduinoOTA.h>
+//#include <ArduinoOTA.h>
 
 // TLS support, make sure to edit the fingerprint and the broker address if
-// your are not using CloudMQTT
+// you are not using CloudMQTT
 #define           TLS
+#ifdef TLS
+const char*       broker      = "m21.cloudmqtt.com"; 
+
+// SHA1 fingerprint of the certificate
+// openssl x509 -fingerprint -in  <certificate>.crt
+const char*       fingerprint = "A5 02 FF 13 99 9F 8B 39 8E F1 83 4F 11 23 65 0B 32 36 FC 07";
+#endif
+
+// PIR motion sensor support, make sure to connect a PIR motion sensor to the GPIO14
+#define           PIR
+#ifdef PIR
+const uint8_t     PIR_SENSOR_PIN = 14;
+#endif
+
 #define           DEBUG                       // enable debugging
 #define           STRUCT_CHAR_ARRAY_SIZE 24   // size of the arrays for MQTT username, password, etc.
 
@@ -88,21 +105,25 @@ typedef struct {
   char            mqttPort[6]                                       = "";//{0};
 } Settings;
 
-const uint8_t     CMD_BUTTON_NOT_PRESSED                            = 0;
-const uint8_t     CMD_BUTTON_CHANGE                                 = 1;
-volatile uint8_t  cmd                                               = CMD_BUTTON_NOT_PRESSED;
+enum CMD {
+  CMD_NOT_DEFINED,
+  CMD_PIR_STATE_CHANGED,
+  CMD_BUTTON_STATE_CHANGED,
+};
+volatile uint8_t cmd = CMD_NOT_DEFINED;
 
 uint8_t           relayState                                        = HIGH;  // HIGH: closed switch
 uint8_t           buttonState                                       = HIGH; // HIGH: opened switch
-volatile long     startPress                                        = 0;
+uint8_t           currentButtonState                                = buttonState;
+long              buttonStartPressed                                = 0;
+long              buttonDurationPressed                             = 0;
+uint8_t           pirState                                          = LOW; 
+uint8_t           currentPirState                                   = pirState;
 
 Settings          settings;
 Ticker            ticker;
 #ifdef TLS
 WiFiClientSecure  wifiClient;
-const char*       broker      = "m21.cloudmqtt.com"; 
-// SHA1 fingerprint of the certificate
-const char*       fingerprint = "A5 02 FF 13 99 9F 8B 39 8E F1 83 4F 11 23 65 0B 32 36 FC 07";
 #else
 WiFiClient        wifiClient;
 #endif
@@ -252,13 +273,6 @@ void setRelayState() {
 }
 
 /*
-  Function called when the button is pressed/released
- */
-void toggleButtonISR() {
-  cmd = CMD_BUTTON_CHANGE;
-}
-
-/*
   Function called to restart the switch
  */
 void restart() {
@@ -279,6 +293,25 @@ void reset() {
 }
 
 ///////////////////////////////////////////////////////////////////////////
+//   ISR
+///////////////////////////////////////////////////////////////////////////
+/*
+  Function called when the button is pressed/released
+ */
+void buttonStateChangedISR() {
+  cmd = CMD_BUTTON_STATE_CHANGED;
+}
+
+/*
+  Function called when the PIR sensor detects the biginning/end of a mouvement
+ */
+ #ifdef PIR
+void pirStateChangedISR() {
+  cmd = CMD_PIR_STATE_CHANGED;
+}
+#endif
+
+///////////////////////////////////////////////////////////////////////////
 //   Setup() and loop()
 ///////////////////////////////////////////////////////////////////////////
 void setup() {
@@ -290,18 +323,24 @@ void setup() {
   pinMode(LED_PIN,    OUTPUT);
   pinMode(RELAY_PIN,  OUTPUT);
   pinMode(BUTTON_PIN, INPUT);
-  attachInterrupt(BUTTON_PIN, toggleButtonISR, CHANGE);
-
+  attachInterrupt(BUTTON_PIN, buttonStateChangedISR, CHANGE);
+#ifdef PIR
+  pinMode(PIR_SENSOR_PIN, INPUT);
+  attachInterrupt(PIR_SENSOR_PIN, pirStateChangedISR, CHANGE);
+#endif
   ticker.attach(0.6, tick);
 
+  // get the Chip ID of the switch and use it as the MQTT client ID
   sprintf(MQTT_CLIENT_ID, "%06X", ESP.getChipId());
   DEBUG_PRINT(F("INFO: MQTT client ID/Hostname: "));
   DEBUG_PRINTLN(MQTT_CLIENT_ID);
 
+  // set the state topic: <Chip ID>/switch/state
   sprintf(MQTT_SWITCH_STATE_TOPIC, "%06X/switch/state", ESP.getChipId());
   DEBUG_PRINT(F("INFO: MQTT state topic: "));
   DEBUG_PRINTLN(MQTT_SWITCH_STATE_TOPIC);
 
+  // set the command topic: <Chip ID>/switch/switch
   sprintf(MQTT_SWITCH_COMMAND_TOPIC, "%06X/switch/switch", ESP.getChipId());
   DEBUG_PRINT(F("INFO: MQTT command topic: "));
   DEBUG_PRINTLN(MQTT_SWITCH_COMMAND_TOPIC);
@@ -310,18 +349,21 @@ void setup() {
   EEPROM.begin(512);
   EEPROM.get(0, settings);
   EEPROM.end();
-  
-  WiFiManagerParameter custom_mqtt_user("mqtt-user", "MQTT User", settings.mqttUser, STRUCT_CHAR_ARRAY_SIZE);
-  WiFiManagerParameter custom_mqtt_password("mqtt-password", "MQTT Password", settings.mqttPassword, STRUCT_CHAR_ARRAY_SIZE, "type = \"password\"");
+
 #ifdef TLS
+  WiFiManagerParameter custom_text("<p>MQTT username, password and broker port</p>");
   WiFiManagerParameter custom_mqtt_server("mqtt-server", "MQTT Broker IP", "m21.cloudmqtt.com", STRUCT_CHAR_ARRAY_SIZE, "disabled");
 #else
+  WiFiManagerParameter custom_text("<p>MQTT username, password, broker IP address and broker port</p>");
   WiFiManagerParameter custom_mqtt_server("mqtt-server", "MQTT Broker IP", settings.mqttServer, STRUCT_CHAR_ARRAY_SIZE);
 #endif
+  WiFiManagerParameter custom_mqtt_user("mqtt-user", "MQTT User", settings.mqttUser, STRUCT_CHAR_ARRAY_SIZE);
+  WiFiManagerParameter custom_mqtt_password("mqtt-password", "MQTT Password", settings.mqttPassword, STRUCT_CHAR_ARRAY_SIZE, "type = \"password\"");
   WiFiManagerParameter custom_mqtt_port("mqtt-port", "MQTT Broker Port", settings.mqttPort, 6);
 
   WiFiManager wifiManager;
-  
+
+  wifiManager.addParameter(&custom_text);
   wifiManager.addParameter(&custom_mqtt_user);
   wifiManager.addParameter(&custom_mqtt_password);
   wifiManager.addParameter(&custom_mqtt_server);
@@ -364,8 +406,8 @@ void setup() {
   // connect to the MQTT broker
   reconnect();
   
-  ArduinoOTA.setHostname(MQTT_CLIENT_ID);
-  ArduinoOTA.begin();
+  //ArduinoOTA.setHostname(MQTT_CLIENT_ID);
+  //ArduinoOTA.begin();
 
   ticker.detach();
 
@@ -374,33 +416,49 @@ void setup() {
 
 
 void loop() {
-  ArduinoOTA.handle();
+  //ArduinoOTA.handle();
 
-  yield();
+  //yield();
 
   switch (cmd) {
-    case CMD_BUTTON_NOT_PRESSED:
+    case CMD_NOT_DEFINED:
       // do nothing
       break;
-    case CMD_BUTTON_CHANGE:
-      cmd = CMD_BUTTON_NOT_PRESSED;
-      uint8_t currentState = digitalRead(BUTTON_PIN);
-      if (currentState != buttonState) {
-        if (buttonState == LOW && currentState == HIGH) {
-          long duration = millis() - startPress;
-          if (duration < 1000) {
+    case CMD_PIR_STATE_CHANGED:
+      currentPirState = digitalRead(PIR_SENSOR_PIN);
+      if (pirState != currentPirState) {
+        if (pirState == LOW && currentPirState == HIGH) {
+          relayState = HIGH; // closed
+          setRelayState();
+        } else if (pirState == HIGH && currentPirState == LOW) {
+          relayState = LOW; // opened
+          setRelayState();
+        }
+        pirState = currentPirState;
+      }
+      cmd = CMD_NOT_DEFINED;
+      break;
+    case CMD_BUTTON_STATE_CHANGED:
+      currentButtonState = digitalRead(BUTTON_PIN);
+      if (buttonState != currentButtonState) {
+        // tests if the button is released or pressed
+        if (buttonState == LOW && currentButtonState == HIGH) {
+          buttonDurationPressed = millis() - buttonStartPressed;
+          if (buttonDurationPressed < 500) {
             relayState = relayState == HIGH ? LOW : HIGH;
             setRelayState();
-          } else if (duration < 3000) {
+          } else if (buttonDurationPressed < 3000) {
             restart();
-          } else if (duration > 5000) {
+          } else {
+            DEBUG_PRINTLN(F("INFO: Reseting..."));
             reset();
           }
-        } else if (buttonState == HIGH && currentState == LOW) {
-          startPress = millis();
+        } else if (buttonState == HIGH && currentButtonState == LOW) {
+          buttonStartPressed = millis();
         }
-        buttonState = currentState;
+        buttonState = currentButtonState;
       }
+      cmd = CMD_NOT_DEFINED;
       break;
   }
 

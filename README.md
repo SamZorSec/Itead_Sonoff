@@ -1,16 +1,19 @@
-# Sonoff
-Alternative firmware for Sonoff switches, based on the MQTT protocol.
+# Itead Sonoff
+## Alternative firmware
+Alternative firmware for Itead Sonoff switches, based on the MQTT protocol and a TLS connection.
 Sonoff is a small ESP8266 based module, that can toggle mains power and costs only $4.85. More information can be found [here](https://www.itead.cc/sonoff-wifi-wireless-switch.html).
 
 ## Features
 - Wi-Fi credentials configuration using WiFiManager
 - Web configuration portal to setup MQTT username, password, broker IP address and port
-- OTA firmware update
-- TLS support for CloudMQTT. For any other MQTT brokers, you need to change the `broker`address and the `fingerprint`of its certificate
+- TLS support for CloudMQTT. For any other MQTT brokers, you need to change:
+	- `broker`: IP address of the MQTT broker, and
+	- `fingerprint`: Fingerprint of its certificate (`openssl x509 -fingerprint -in  <certificate>.crt`)
 - Onboard button:
-  - Toggle the state of the relay
-  - Restart the relay (hold pressed 3 seconds)
-  - Reset the relay (hold pressed 5 seconds)
+  - Short press: Toggle the state of the relay
+  - Medium press: Restart the relay (~3 [s])
+  - Long press: Reset the relay
+- PIR motion sensor support. Make sure to connect your sensor on GPIO14
 
 ## Steps
 - Connect the Sonoff to a FTDI adapter and hold down the button, while powering it (programing mode)
@@ -18,7 +21,7 @@ Sonoff is a small ESP8266 based module, that can toggle mains power and costs on
 - Connect to the new Wi-Fi AP and memorize its name (1)
 - Select `Configure WiFi`(2)
 - Choose your network (3) and enter your MQTT username, password, broker IP address and broker port (4)
-- Update your configuration in Home Assistant
+- Update your configuration in your home automation system. An example for `Home Assistant`is available below
 
 ### Settings for the Arduino IDE
 
@@ -38,15 +41,13 @@ Sonoff is a small ESP8266 based module, that can toggle mains power and costs on
 ### Wi-Fi and MQTT Configuration
 ![Steps](Steps.png)
 
-## Schematic
-- VCC (Sonoff) -> VCC (FTDI)
-- RX  (Sonoff) -> TX  (FTDI)
-- TX  (Sonoff) -> RX  (FTDI)
-- GND (Sonoff) -> GND (FTDI)
+### MQTT topics
+| #          | Topic                     | Payload   |
+| -----------|---------------------------|-----------|
+| State      | `<Chip_ID>/switch/state`  | `ON`/`OFF`|
+| Command    | `<Chip_ID>/switch/switch` | `ON`/`OFF`|
 
-![Schematic](Schematic.jpg)
-
-## Configuration (Home Assistant)
+### Configuration (Home Assistant)
 configuration.yaml :
 
 ```yaml
@@ -58,6 +59,15 @@ switch:
   optimistic: false
 ```
 
+## Schematic
+- VCC (Sonoff) -> VCC (FTDI)
+- RX  (Sonoff) -> TX  (FTDI)
+- TX  (Sonoff) -> RX  (FTDI)
+- GND (Sonoff) -> GND (FTDI)
+
+![Schematic](Schematic.jpg)
+
 ## Versions
 - 1.0: Initial version
 - 1.1: Add TLS support
+- 1.2: Add PIR motion sensor support
