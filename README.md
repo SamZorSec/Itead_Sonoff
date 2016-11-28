@@ -39,7 +39,7 @@ Sonoff is a small ESP8266 based module, that can toggle mains power and costs on
 
 
 ### Wi-Fi and MQTT Configuration
-![Steps](Steps.png)
+![Steps](images/Steps.png)
 
 ### MQTT topics
 | #          | Topic                     | Payload   |
@@ -65,7 +65,7 @@ switch:
 - TX  (Sonoff) -> RX  (FTDI)
 - GND (Sonoff) -> GND (FTDI)
 
-![Schematic](Schematic.jpg)
+![Schematic](images/Schematic.jpg)
 
 ## Versions
 - 1.0: Initial version

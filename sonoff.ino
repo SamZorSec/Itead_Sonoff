@@ -1,17 +1,17 @@
-/* 
+/*
   Alternative firmware for Itead Sonoff switches, based on the MQTT protocol and a TLS connection
   The very initial version of this firmware was a fork from the SonoffBoilerplate (tzapu)
-  
-  This firmware can be easily interfaced with Home Assistant, with the MQTT switch 
+
+  This firmware can be easily interfaced with Home Assistant, with the MQTT switch
   component: https://home-assistant.io/components/switch.mqtt/
 
   CloudMQTT (free until 10 connections): https://www.cloudmqtt.com
-  
+
   Libraries :
     - ESP8266 core for Arduino :  https://github.com/esp8266/Arduino
     - PubSubClient:               https://github.com/knolleary/pubsubclient
     - WiFiManager:                https://github.com/tzapu/WiFiManager
-  
+
   Sources :
     - File > Examples > ES8266WiFi > WiFiClient
     - File > Examples > PubSubClient > mqtt_auth
@@ -26,8 +26,8 @@
 
   Steps:
     - Upload the firmware
-    - Connect to the new Wi-Fi AP and memorize its name 
-    - Choose your network and enter your MQTT username, password, broker 
+    - Connect to the new Wi-Fi AP and memorize its name
+    - Choose your network and enter your MQTT username, password, broker
       IP address and broker port
     - Update your configuration in Home Assistant
 
@@ -35,7 +35,7 @@
     - State:    <Chip_ID>/switch/state      ON/OFF
     - Command:  <Chip_ID>/switch/switch     ON/OFF
 
-  Configuration (Home Assistant) : 
+  Configuration (Home Assistant) :
     switch:
       platform: mqtt
       name: 'Switch'
@@ -64,7 +64,7 @@
 // you are not using CloudMQTT
 #define           TLS
 #ifdef TLS
-const char*       broker      = "m21.cloudmqtt.com"; 
+const char*       broker      = "m21.cloudmqtt.com";
 
 // SHA1 fingerprint of the certificate
 // openssl x509 -fingerprint -in  <certificate>.crt
@@ -72,7 +72,7 @@ const char*       fingerprint = "A5 02 FF 13 99 9F 8B 39 8E F1 83 4F 11 23 65 0B
 #endif
 
 // PIR motion sensor support, make sure to connect a PIR motion sensor to the GPIO14
-#define           PIR
+//#define           PIR
 #ifdef PIR
 const uint8_t     PIR_SENSOR_PIN = 14;
 #endif
@@ -107,6 +107,8 @@ typedef struct {
   char            mqttPassword[STRUCT_CHAR_ARRAY_SIZE]              = "";//{0};
   char            mqttServer[STRUCT_CHAR_ARRAY_SIZE]                = "";//{0};
   char            mqttPort[6]                                       = "";//{0};
+  char            mqttStateTopic[STRUCT_CHAR_ARRAY_SIZE]            = "";
+  char            mqttCommandTopic[STRUCT_CHAR_ARRAY_SIZE]          = "";
 } Settings;
 
 enum CMD {
@@ -121,8 +123,10 @@ uint8_t           buttonState                                       = HIGH; // H
 uint8_t           currentButtonState                                = buttonState;
 long              buttonStartPressed                                = 0;
 long              buttonDurationPressed                             = 0;
-uint8_t           pirState                                          = LOW; 
+#ifdef PIR
+uint8_t           pirState                                          = LOW;
 uint8_t           currentPirState                                   = pirState;
+#endif
 
 Settings          settings;
 Ticker            ticker;
@@ -169,7 +173,8 @@ void verifyFingerprint() {
 */
 void callback(char* p_topic, byte* p_payload, unsigned int p_length) {
   // handle the MQTT topic of the received message
-  if (String(MQTT_SWITCH_COMMAND_TOPIC).equals(p_topic)) {
+  if (String(settings.mqttCommandTopic).equals(p_topic)) {
+  //if (String(MQTT_SWITCH_COMMAND_TOPIC).equals(p_topic)) {
     if ((char)p_payload[0] == (char)MQTT_SWITCH_ON_PAYLOAD[0] && (char)p_payload[1] == (char)MQTT_SWITCH_ON_PAYLOAD[1]) {
       if (relayState != HIGH) {
         relayState = HIGH;
@@ -189,18 +194,22 @@ void callback(char* p_topic, byte* p_payload, unsigned int p_length) {
 */
 void publishSwitchState() {
   if (relayState == HIGH) {
-    if (mqttClient.publish(MQTT_SWITCH_STATE_TOPIC, MQTT_SWITCH_ON_PAYLOAD, true)) {
+    if (mqttClient.publish(settings.mqttStateTopic, MQTT_SWITCH_ON_PAYLOAD, true)) {
+//    if (mqttClient.publish(MQTT_SWITCH_STATE_TOPIC, MQTT_SWITCH_ON_PAYLOAD, true)) {
       DEBUG_PRINT(F("INFO: MQTT message publish succeeded. Topic: "));
-      DEBUG_PRINT(MQTT_SWITCH_STATE_TOPIC);
+      DEBUG_PRINT(settings.mqttStateTopic);
+      //DEBUG_PRINT(MQTT_SWITCH_STATE_TOPIC);
       DEBUG_PRINT(F(". Payload: "));
       DEBUG_PRINTLN(MQTT_SWITCH_ON_PAYLOAD);
     } else {
       DEBUG_PRINTLN(F("ERROR: MQTT message publish failed, either connection lost, or message too large"));
     }
   } else {
-    if (mqttClient.publish(MQTT_SWITCH_STATE_TOPIC, MQTT_SWITCH_OFF_PAYLOAD, true)) {
+    if (mqttClient.publish(settings.mqttStateTopic, MQTT_SWITCH_OFF_PAYLOAD, true)) {
+    //if (mqttClient.publish(MQTT_SWITCH_STATE_TOPIC, MQTT_SWITCH_OFF_PAYLOAD, true)) {
       DEBUG_PRINT(F("INFO: MQTT message publish succeeded. Topic: "));
-      DEBUG_PRINT(MQTT_SWITCH_STATE_TOPIC);
+      //DEBUG_PRINT(MQTT_SWITCH_STATE_TOPIC);
+      DEBUG_PRINT(settings.mqttStateTopic);
       DEBUG_PRINT(F(". Payload: "));
       DEBUG_PRINTLN(MQTT_SWITCH_OFF_PAYLOAD);
     } else {
@@ -213,6 +222,15 @@ void publishSwitchState() {
   Function called to connect/reconnect to the MQTT broker
  */
 void reconnect() {
+  // test if the module has an IP address
+  // if not, restart the module
+  if (WiFi.status() != WL_CONNECTED) {
+    DEBUG_PRINTLN(F("ERROR: The module isn't connected to the internet"));
+    restart();
+  }
+
+  // try to connect to the MQTT broker
+  // if the connection is not possible, it will reset the settings
   uint8_t i = 0;
   while (!mqttClient.connected()) {
     if (mqttClient.connect(MQTT_CLIENT_ID, settings.mqttUser, settings.mqttPassword)) {
@@ -233,12 +251,15 @@ void reconnect() {
     }
   }
 
-  if (mqttClient.subscribe(MQTT_SWITCH_COMMAND_TOPIC)) {
+  if (mqttClient.subscribe(settings.mqttCommandTopic)) {
+  //if (mqttClient.subscribe(MQTT_SWITCH_COMMAND_TOPIC)) {
     DEBUG_PRINT(F("INFO: Sending the MQTT subscribe succeeded. Topic: "));
-    DEBUG_PRINTLN(MQTT_SWITCH_COMMAND_TOPIC);
+    DEBUG_PRINTLN(settings.mqttCommandTopic);
+    //DEBUG_PRINTLN(MQTT_SWITCH_COMMAND_TOPIC);
   } else {
     DEBUG_PRINT(F("ERROR: Sending the MQTT subscribe failed. Topic: "));
-    DEBUG_PRINTLN(MQTT_SWITCH_COMMAND_TOPIC);
+    DEBUG_PRINTLN(settings.mqttCommandTopic);
+    //DEBUG_PRINTLN(MQTT_SWITCH_COMMAND_TOPIC);
   }
 }
 
@@ -365,6 +386,10 @@ void setup() {
   WiFiManagerParameter custom_mqtt_password("mqtt-password", "MQTT Password", settings.mqttPassword, STRUCT_CHAR_ARRAY_SIZE, "type = \"password\"");
   WiFiManagerParameter custom_mqtt_port("mqtt-port", "MQTT Broker Port", settings.mqttPort, 6);
 
+  WiFiManagerParameter custom_mqtt_topics("<p>MQTT state and command topics</p>");
+  WiFiManagerParameter custom_mqtt_state_topic("mqtt-state-topic", "MQTT State Topic", MQTT_SWITCH_STATE_TOPIC, STRUCT_CHAR_ARRAY_SIZE);
+  WiFiManagerParameter custom_mqtt_command_topic("mqtt-command-topic", "MQTT Command Topic", MQTT_SWITCH_COMMAND_TOPIC, STRUCT_CHAR_ARRAY_SIZE);
+
   WiFiManager wifiManager;
 
   wifiManager.addParameter(&custom_text);
@@ -373,14 +398,17 @@ void setup() {
   wifiManager.addParameter(&custom_mqtt_server);
   wifiManager.addParameter(&custom_mqtt_port);
 
+  wifiManager.addParameter(&custom_mqtt_topics);
+  wifiManager.addParameter(&custom_mqtt_state_topic);
+  wifiManager.addParameter(&custom_mqtt_command_topic);
+
   wifiManager.setAPCallback(configModeCallback);
   wifiManager.setConfigPortalTimeout(180);
   // set config save notify callback
   wifiManager.setSaveConfigCallback(saveConfigCallback);
 
   if (!wifiManager.autoConnect(MQTT_CLIENT_ID)) {
-    ESP.reset();
-    delay(1000);
+    reset();
   }
 
   if (shouldSaveConfig) {
@@ -392,6 +420,9 @@ void setup() {
     strcpy(settings.mqttUser,     custom_mqtt_user.getValue());
     strcpy(settings.mqttPassword, custom_mqtt_password.getValue());
     strcpy(settings.mqttPort,     custom_mqtt_port.getValue());
+
+    strcpy(settings.mqttStateTopic, custom_mqtt_state_topic.getValue());
+    strcpy(settings.mqttCommandTopic, custom_mqtt_command_topic.getValue());
 
     EEPROM.begin(512);
     EEPROM.put(0, settings);
@@ -409,7 +440,7 @@ void setup() {
 
   // connect to the MQTT broker
   reconnect();
-  
+
   //ArduinoOTA.setHostname(MQTT_CLIENT_ID);
   //ArduinoOTA.begin();
 
@@ -472,7 +503,7 @@ void loop() {
   }
 
   yield();
-  
+
   // keep the MQTT client connected to the broker
   if (!mqttClient.connected()) {
     reconnect();
