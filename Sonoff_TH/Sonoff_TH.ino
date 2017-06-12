@@ -427,7 +427,6 @@ void setup() {
 
 #if defined(SAVE_STATE)
   SPIFFS.begin();
-  //SPIFFS.format(); // remove config
   loadConfig();
 #else
   sonoff.init();

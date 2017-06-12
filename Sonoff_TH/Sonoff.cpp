@@ -1,10 +1,5 @@
 #include "Sonoff.h"
 
-#if defined(DS18B20_SENSOR)
-OneWire ow(SONOFF_TH_JACK);
-DallasTemperature ds18b20(&ow);
-#endif
-
 ///////////////////////////////////////////////////////////////////////////
 //   CONSTRUCTOR, INIT() AND LOOP()
 ///////////////////////////////////////////////////////////////////////////
@@ -60,13 +55,3 @@ void Sonoff::isDiscovered(bool p_isDiscovered) {
 void buttonStateChangedISR(void) {
   cmd = CMD_BUTTON_STATE_CHANGED;
 }
-
-///////////////////////////////////////////////////////////////////////////
-//   DS18B20 SENSOR
-///////////////////////////////////////////////////////////////////////////
-#if defined(DS18B20_SENSOR)
-float Sonoff::getTemperature(void) {
-  ds18b20.requestTemperatures();
-  return ds18b20.getTempCByIndex(0); 
-}
-#endif
