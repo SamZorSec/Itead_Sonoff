@@ -1,4 +1,6 @@
 # ITEAD Smart Home
+**THIS REPOSITORY IS NOT MAINTAINED ANYMORE, SEE [ESPHome](https://esphome.io/) AS AN ALTERNATIVE.**
+
 ## Alternative firmwares for [itead.cc](http://sonoff.itead.cc/) Sonoff products
 This repository offers alternative and open-source firmwares for iTead Sonoff products, based on the MQTT protocol and are natively compatible with [Home Assistant](https://home-assistant.io), which is an amazing open-source home automation platform.
 
